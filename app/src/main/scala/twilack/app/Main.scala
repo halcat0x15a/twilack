@@ -1,4 +1,4 @@
-package twilack
+package twilack.app
 
 import akka.actor.ActorSystem
 

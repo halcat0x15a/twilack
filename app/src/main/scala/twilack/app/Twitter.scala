@@ -1,4 +1,4 @@
-package twilack
+package twilack.app
 
 import scala.concurrent.ExecutionContext
 

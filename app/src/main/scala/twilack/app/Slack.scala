@@ -1,4 +1,4 @@
-package twilack
+package twilack.app
 
 import play.api.libs.json.JsValue
 
