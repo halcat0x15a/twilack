@@ -2,17 +2,16 @@ package twilack.app
 
 import scala.concurrent.ExecutionContext
 
-import slack.api.SlackApiClient
-import slack.models.Attachment
+import twilack.slack.{Attachment, SlackAPI}
 
 import twitter4j._
 
-class TwitterEventHandler(twitter: Twitter, slack: SlackApiClient, id: String, name: String, home: String, notifications: String)(implicit ec: ExecutionContext) extends UserStreamAdapter {
+class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: String, home: String, notifications: String)(implicit ec: ExecutionContext) extends UserStreamAdapter {
 
-  def getAttachments(status: Status): Seq[Attachment] =
-    status.getExtendedMediaEntities.flatMap { media =>
+  def getAttachments(status: Status): List[Attachment] =
+    status.getExtendedMediaEntities.toList.flatMap { media =>
       if (media.getType == "photo" || media.getType == "animated_gif") {
-        Some(Attachment(image_url = Some(media.getMediaURL)))
+        Some(Attachment(imageUrl = Some(media.getMediaURL)))
       } else {
         None
       }
@@ -30,13 +29,13 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackApiClient, id: String, n
   def getAttachment(id: String, status: Status): Attachment =
     Attachment(
       fallback = Some(id),
-      author_name = Some(status.getUser.getScreenName),
-      author_icon = Some(status.getUser.getProfileImageURL),
+      authorName = Some(status.getUser.getScreenName),
+      authorIcon = Some(status.getUser.getProfileImageURL),
       text = Some(getText(status))
     )
 
-  def postMessage(channel: String, user: User, attachments: Seq[Attachment]): Unit =
-    slack.postChatMessage(
+  def postMessage(channel: String, user: User, attachments: List[Attachment]): Unit =
+    slack.postMessage(
       channel,
       "",
       username = Some(user.getScreenName),

@@ -23,9 +23,7 @@ lazy val slack = (project in file("slack")).
     name := "twilack-slack",
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-actor" % "2.4.7",
-      "io.netty" % "netty-handler" % "4.1.1.Final",
-      "io.netty" % "netty-codec-http" % "4.1.1.Final",
-      "org.json4s" %% "json4s-jackson" % "3.4.0",
+      "com.typesafe.play" % "play-json_2.11" % "2.5.4",
       "org.asynchttpclient" % "async-http-client" % "2.0.7"
     )
   )

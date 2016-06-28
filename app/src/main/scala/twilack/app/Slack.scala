@@ -4,12 +4,11 @@ import play.api.libs.json.JsValue
 
 import scala.concurrent.ExecutionContext
 
-import slack.api.SlackApiClient
-import slack.models._
+import twilack.slack.SlackAPI
 
 import twitter4j.{Twitter, TwitterException}
 
-class SlackEventHandler(twitter: Twitter, slack: SlackApiClient, id: String, name: String, home: String)(implicit ec: ExecutionContext) extends (SlackEvent => Unit) {
+class SlackEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: String, home: String)(implicit ec: ExecutionContext) extends (JsValue => Unit) {
 
   def getStatusId(json: JsValue): Option[Long] =
     if ((json \ "type").as[String] == "message")
@@ -17,24 +16,30 @@ class SlackEventHandler(twitter: Twitter, slack: SlackApiClient, id: String, nam
     else
       None
 
-  def onMessage(message: Message): Unit =
-    if (message.user == id) {
-      val text = message.text
+  def onMessage(json: JsValue): Unit =
+    if ((json \ "user").as[String] == id) {
+      val text = (json \ "text")
+        .as[String]
         .replace(s"<@$id>", s"@$name")
         .replaceAll("<[@#!]\\w+>", "")
       try {
         twitter.updateStatus(text)
       } catch {
-        case e: TwitterException => slack.postChatMessage(e.getMessage, home)
+        case e: TwitterException => slack.postMessage(home, e.getMessage)
       }
     }
 
-  def apply(event: SlackEvent): Unit =
-    event match {
-      case message: Message => onMessage(message)
-      case star: StarAdded => getStatusId(star.item).foreach(twitter.createFavorite)
-      case star: StarRemoved => getStatusId(star.item).foreach(twitter.destroyFavorite)
-      case _ => println(event)
+  def apply(json: JsValue): Unit =
+    try {
+      println(json)
+      (json \ "type").as[String] match {
+        case "message" => onMessage(json)
+        case "star_added" => getStatusId((json \ "item").get).foreach(twitter.createFavorite)
+        case "star_removed" => getStatusId((json \ "item").get).foreach(twitter.destroyFavorite)
+        case _ =>
+      }
+    } catch {
+      case e: Throwable => e.printStackTrace()
     }
 
 }
