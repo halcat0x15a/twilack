@@ -6,7 +6,7 @@ import twilack.slack.{Attachment, SlackAPI}
 
 import twitter4j._
 
-class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: String, home: String, notifications: String)(implicit ec: ExecutionContext) extends UserStreamAdapter {
+class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(implicit ec: ExecutionContext) extends UserStreamAdapter {
 
   def getAttachments(status: Status): List[Attachment] =
     status.getExtendedMediaEntities.toList.flatMap { media =>
@@ -23,7 +23,7 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: S
     }
     (status.getExtendedMediaEntities ++ status.getURLEntities).foldLeft(text) { (text, entity) =>
       text.replace(entity.getURL, entity.getExpandedURL)
-    }.replace(s"@${twitter.getScreenName}", s"<@${id}>")
+    }.replace(s"@${user.twitterName}", s"<@${user.slackId}>")
   }
 
   def getAttachment(id: String, status: Status): Attachment =
@@ -35,7 +35,7 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: S
     )
 
   def postMessage(channel: String, user: User, attachments: List[Attachment]): Unit =
-    slack.postMessage(
+    slack.chat.postMessage(
       channel,
       "",
       username = Some(user.getScreenName),
@@ -45,9 +45,9 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: S
     )
 
   override def onFavorite(source: User, target: User, favoritedStatus: Status) = {
-    if (target.getId == twitter.getId) {
+    if (target.getId == user.twitterId) {
       val attachment = getAttachment(favoritedStatus.getId.toString, favoritedStatus)
-      postMessage(notifications, source, attachment +: getAttachments(favoritedStatus))
+      postMessage(Twilack.channel, source, attachment +: getAttachments(favoritedStatus))
     }
   }
 
@@ -55,13 +55,13 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: S
     if (status.isRetweet) {
       val retweeted = status.getRetweetedStatus
       val attachment = getAttachment(status.getId.toString, retweeted)
-      postMessage(home, status.getUser, attachment +: getAttachments(retweeted))
+      postMessage(Twilack.channel, status.getUser, attachment +: getAttachments(retweeted))
     } else {
       val attachment = Attachment(
         fallback = Some(status.getId.toString),
         pretext = Some(getText(status))
       )
-      postMessage(home, status.getUser, attachment +: getAttachments(status))
+      postMessage(Twilack.channel, status.getUser, attachment +: getAttachments(status))
     }
   }
 

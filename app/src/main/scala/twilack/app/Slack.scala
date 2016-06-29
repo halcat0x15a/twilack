@@ -3,12 +3,13 @@ package twilack.app
 import play.api.libs.json.JsValue
 
 import scala.concurrent.ExecutionContext
+import scala.util.{Failure, Success, Try}
 
 import twilack.slack.SlackAPI
 
 import twitter4j.{Twitter, TwitterException}
 
-class SlackEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: String, home: String)(implicit ec: ExecutionContext) extends (JsValue => Unit) {
+class SlackEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(implicit ec: ExecutionContext) extends (Try[JsValue] => Unit) {
 
   def getStatusId(json: JsValue): Option[Long] =
     if ((json \ "type").as[String] == "message")
@@ -17,19 +18,19 @@ class SlackEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: Str
       None
 
   def onMessage(json: JsValue): Unit =
-    if ((json \ "user").asOpt[String].exists(_ == id)) {
+    if ((json \ "user").asOpt[String].exists(_ == user.slackId)) {
       val text = (json \ "text")
         .as[String]
-        .replace(s"<@$id>", s"@$name")
+        .replace(s"<@${user.slackId}>", s"@${user.twitterName}")
         .replaceAll("<[@#!]\\w+>", "")
       try {
         twitter.updateStatus(text)
       } catch {
-        case e: TwitterException => slack.postMessage(home, e.getMessage)
+        case e: TwitterException => slack.chat.postMessage(Twilack.channel, e.getMessage)
       }
     }
 
-  def apply(json: JsValue): Unit =
+  def onSuccess(json: JsValue): Unit =
     try {
       println(json)
       (json \ "type").asOpt[String].foreach {
@@ -40,6 +41,12 @@ class SlackEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: Str
       }
     } catch {
       case e: Throwable => e.printStackTrace()
+    }
+
+  def apply(value: Try[JsValue]): Unit =
+    value match {
+      case Success(json) => onSuccess(json)
+      case Failure(e) => e.printStackTrace()
     }
 
 }

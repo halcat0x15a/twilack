@@ -11,9 +11,9 @@ lazy val app = (project in file("app")).
   settings(
     name := "twilack-app",
     libraryDependencies ++= Seq(
-      "com.twitter" %% "finagle-http" % "6.35.0",
       "org.twitter4j" % "twitter4j-stream" % "4.0.4",
-      "com.typesafe" % "config" % "1.3.0"
+      "com.typesafe" % "config" % "1.3.0",
+      "com.typesafe.akka" %% "akka-http-experimental" % "2.4.7"
     )
   ).dependsOn(slack)
 

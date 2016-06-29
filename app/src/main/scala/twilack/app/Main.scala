@@ -6,7 +6,7 @@ import com.typesafe.config.ConfigFactory
 
 import java.io.File
 
-import scala.io.StdIn
+import scala.util.{Failure, Success}
 
 import twilack.slack.{SlackAPI, SlackRTM}
 
@@ -25,7 +25,7 @@ object Main extends App {
   val conf = if (confFile.exists()) {
     TwilackConfig.fromConfig(ConfigFactory.parseFile(confFile))
   } else {
-    OAuthClient.auth(twitter, confFile.toPath)
+    OAuthClient.authorize(twitter, confFile.toPath)
   }
   val accessToken = new AccessToken(conf.twitterToken, conf.twitterSecret)
   twitter.setOAuthAccessToken(accessToken)
@@ -33,9 +33,15 @@ object Main extends App {
   val api = SlackAPI(conf.slackToken)
   val id = "U1L9JMNRX"
   val name = "halcat0x15a"
-  val home = "#general"
-  val notifications = "#random"
-  val rtm = SlackRTM(api)(new SlackEventHandler(twitter, api, id, name, home))
-  twitterStream.addListener(new TwitterEventHandler(twitter, api, id, name, home, notifications))
-  twitterStream.user()
+  SlackRTM.start(api).onComplete {
+    case Success(rtm) =>
+      val id = (rtm.state \ "self" \ "id").as[String]
+      val name = (rtm.state \ "self" \ "name").as[String]
+      val user = TwilackUser(id, name, twitter.getId, twitter.getScreenName)
+      rtm.onComplete(new SlackEventHandler(twitter, api, user))
+      twitterStream.addListener(new TwitterEventHandler(twitter, api, user))
+      twitterStream.user()
+    case Failure(e) =>
+      e.printStackTrace
+  }
 }
