@@ -1,23 +1,24 @@
 package twilack.slack
 
-import org.asynchttpclient.DefaultAsyncHttpClient
+import org.asynchttpclient.{DefaultAsyncHttpClient, RequestBuilder}
 
 import play.api.libs.json.{Json, JsValue}
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.language.implicitConversions
 
 trait SlackAPI {
 
   implicit def executionContext: ExecutionContext
 
-  def token: String
+  def accessToken: String
 
   val httpClient = new DefaultAsyncHttpClient
 
   def execute(method: String, params: (String, SlackAPI.Param)*): Future[JsValue] = Future {
     val request = httpClient
       .prepareGet(s"https://slack.com/api/$method")
-      .addQueryParam("token", token)
+      .addQueryParam("token", accessToken)
     params.foreach {
       case (key, param) => param.value.foreach(request.addQueryParam(key, _))
     }
@@ -68,11 +69,33 @@ trait SlackAPI {
 
 object SlackAPI {
 
-  def apply(t: String)(implicit ec: ExecutionContext): SlackAPI =
+  def authorize(clientId: String, scope: String, redirectUri: Option[String] = None, state: Option[String] = None, team: Option[String] = None): String = {
+    val builder = new RequestBuilder()
+      .setUrl("https://slack.com/oauth/authorize")
+      .addQueryParam("client_id", clientId)
+      .addQueryParam("scope", scope)
+    redirectUri.foreach(builder.addQueryParam("redirect_uri", _))
+    state.foreach(builder.addQueryParam("state", _))
+    team.foreach(builder.addQueryParam("team", _))
+    builder.build.getUrl
+  }
+
+  def apply(token: String)(implicit ec: ExecutionContext): SlackAPI =
     new SlackAPI {
-      val token = t
+      val accessToken = token
       val executionContext = ec
     }
+
+  def access(clientId: String, clientSecret: String, code: String, redirectUri: Option[String] = None)(implicit ec: ExecutionContext): SlackAPI = {
+    val request = new DefaultAsyncHttpClient()
+      .prepareGet("https://slack.com/api/oauth.access")
+      .addQueryParam("client_id", clientId)
+      .addQueryParam("client_secret", clientSecret)
+      .addQueryParam("code", code)
+    redirectUri.foreach(request.addQueryParam("redirect_uri", _))
+    val token = (Json.parse(request.execute().get().getResponseBody()) \ "access_token").as[String]
+    SlackAPI(token)
+  }
 
   case class Param(value: Option[String]) extends AnyVal
 

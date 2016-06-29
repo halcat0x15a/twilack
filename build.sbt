@@ -1,7 +1,7 @@
 lazy val commonSettings = Seq(
   version := "1.0",
   scalaVersion := "2.11.8",
-  scalacOptions += "-deprecation"
+  scalacOptions ++= Seq("-feature", "-deprecation", "-Xexperimental")
 )
 
 lazy val root = (project in file(".")).aggregate(app, slack)
@@ -11,9 +11,9 @@ lazy val app = (project in file("app")).
   settings(
     name := "twilack-app",
     libraryDependencies ++= Seq(
+      "com.twitter" %% "finagle-http" % "6.35.0",
       "org.twitter4j" % "twitter4j-stream" % "4.0.4",
-      "com.typesafe" % "config" % "1.3.0",
-      "com.github.gilbertw1" %% "slack-scala-client" % "0.1.4"
+      "com.typesafe" % "config" % "1.3.0"
     )
   ).dependsOn(slack)
 
