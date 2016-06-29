@@ -86,15 +86,14 @@ object SlackAPI {
       val executionContext = ec
     }
 
-  def access(clientId: String, clientSecret: String, code: String, redirectUri: Option[String] = None)(implicit ec: ExecutionContext): SlackAPI = {
+  def access(clientId: String, clientSecret: String, code: String, redirectUri: Option[String] = None): JsValue = {
     val request = new DefaultAsyncHttpClient()
       .prepareGet("https://slack.com/api/oauth.access")
       .addQueryParam("client_id", clientId)
       .addQueryParam("client_secret", clientSecret)
       .addQueryParam("code", code)
     redirectUri.foreach(request.addQueryParam("redirect_uri", _))
-    val token = (Json.parse(request.execute().get().getResponseBody()) \ "access_token").as[String]
-    SlackAPI(token)
+    Json.parse(request.execute().get().getResponseBody())
   }
 
   case class Param(value: Option[String]) extends AnyVal

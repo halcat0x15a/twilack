@@ -17,7 +17,7 @@ class SlackEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: Str
       None
 
   def onMessage(json: JsValue): Unit =
-    if ((json \ "user").as[String] == id) {
+    if ((json \ "user").asOpt[String].exists(_ == id)) {
       val text = (json \ "text")
         .as[String]
         .replace(s"<@$id>", s"@$name")
@@ -32,7 +32,7 @@ class SlackEventHandler(twitter: Twitter, slack: SlackAPI, id: String, name: Str
   def apply(json: JsValue): Unit =
     try {
       println(json)
-      (json \ "type").as[String] match {
+      (json \ "type").asOpt[String].foreach {
         case "message" => onMessage(json)
         case "star_added" => getStatusId((json \ "item").get).foreach(twitter.createFavorite)
         case "star_removed" => getStatusId((json \ "item").get).foreach(twitter.destroyFavorite)
