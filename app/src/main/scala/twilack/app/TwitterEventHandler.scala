@@ -9,13 +9,14 @@ import twitter4j._
 class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(implicit ec: ExecutionContext) extends UserStreamAdapter {
 
   def getAttachments(status: Status): List[Attachment] =
-    status.getExtendedMediaEntities.toList.flatMap { media =>
+    (status.getMediaEntities ++ status.getExtendedMediaEntities).toList.flatMap { media =>
+      println(s"media: $media")
       if (media.getType == "photo" || media.getType == "animated_gif") {
         Some(Attachment(imageUrl = Some(media.getMediaURL)))
       } else {
         None
       }
-    }
+    }.distinct
 
   def getText(status: Status): String = {
     val text = status.getHashtagEntities.foldLeft(status.getText) { (text, entity) =>
@@ -26,17 +27,9 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(
     }.replace(s"@${user.twitterName}", s"<@${user.slackId}>")
   }
 
-  def getAttachment(id: String, status: Status): Attachment =
-    Attachment(
-      fallback = Some(id),
-      authorName = Some(status.getUser.getScreenName),
-      authorIcon = Some(status.getUser.getProfileImageURL),
-      text = Some(getText(status))
-    )
-
-  def postMessage(channel: String, user: User, attachments: List[Attachment]): Unit =
+  def postMessage(user: User, attachments: List[Attachment]): Unit =
     slack.chat.postMessage(
-      channel,
+      Twilack.channel,
       "",
       username = Some(user.getScreenName),
       asUser = Some(false),
@@ -44,24 +37,30 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(
       attachments = Some(attachments)
     )
 
-  override def onFavorite(source: User, target: User, favoritedStatus: Status) = {
-    if (target.getId == user.twitterId) {
-      val attachment = getAttachment(favoritedStatus.getId.toString, favoritedStatus)
-      postMessage(Twilack.channel, source, attachment +: getAttachments(favoritedStatus))
-    }
-  }
+  def statusToAttachment(status: Status): Attachment =
+    statusToAuther(status).copy(text = Some(getText(status)))
+
+  def statusToAuther(status: Status): Attachment =
+    Attachment(
+      fallback = Some(status.getId.toString),
+      authorName = Some(status.getUser.getScreenName),
+      authorIcon = Some(status.getUser.getProfileImageURL)
+    )
+
+  def statusToPretext(status: Status): Attachment =
+    Attachment(
+      fallback = Some(status.getId.toString),
+      pretext = Some(getText(status))
+    )
 
   override def onStatus(status: Status) = {
     if (status.isRetweet) {
       val retweeted = status.getRetweetedStatus
-      val attachment = getAttachment(status.getId.toString, retweeted)
-      postMessage(Twilack.channel, status.getUser, attachment +: getAttachments(retweeted))
+      println(getAttachments(retweeted))
+      postMessage(retweeted.getUser, statusToPretext(retweeted) +: getAttachments(retweeted) :+ statusToAuther(status))
     } else {
-      val attachment = Attachment(
-        fallback = Some(status.getId.toString),
-        pretext = Some(getText(status))
-      )
-      postMessage(Twilack.channel, status.getUser, attachment +: getAttachments(status))
+      println(getAttachments(status))
+      postMessage(status.getUser, statusToPretext(status) +: getAttachments(status))
     }
   }
 

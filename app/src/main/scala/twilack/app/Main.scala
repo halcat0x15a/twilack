@@ -31,8 +31,6 @@ object Main extends App {
   twitter.setOAuthAccessToken(accessToken)
   twitterStream.setOAuthAccessToken(accessToken)
   val api = SlackAPI(conf.slackToken)
-  val id = "U1L9JMNRX"
-  val name = "halcat0x15a"
   SlackRTM.start(api).onComplete {
     case Success(rtm) =>
       val id = (rtm.state \ "self" \ "id").as[String]
