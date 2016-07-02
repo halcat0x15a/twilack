@@ -14,8 +14,14 @@ lazy val app = (project in file("app")).
       "org.twitter4j" % "twitter4j-stream" % "4.0.4",
       "com.typesafe" % "config" % "1.3.0",
       "com.typesafe.akka" %% "akka-http-experimental" % "2.4.7"
-    )
-  ).dependsOn(slack)
+    ),
+    assemblyJarName in assembly := "twilack.jar",
+    assemblyMergeStrategy in assembly := {
+      case "META-INF/io.netty.versions.properties" => MergeStrategy.discard
+      case x => (assemblyMergeStrategy in assembly).value(x)
+    }
+  ).
+  dependsOn(slack)
 
 lazy val slack = (project in file("slack")).
   settings(commonSettings: _*).

@@ -6,6 +6,8 @@ import com.typesafe.config.ConfigFactory
 
 import java.io.File
 
+import play.api.libs.json.JsValue
+
 import scala.util.{Failure, Success}
 
 import twilack.slack.{SlackAPI, SlackRTM}
@@ -31,11 +33,16 @@ object Main extends App {
   twitter.setOAuthAccessToken(accessToken)
   twitterStream.setOAuthAccessToken(accessToken)
   val api = SlackAPI(conf.slackToken)
-  SlackRTM.start(api).onComplete {
-    case Success(rtm) =>
+  SlackRTM.start(api).zip(api.channels.list()).onComplete {
+    case Success((rtm, list)) =>
+      val channel = (list \ "channels")
+        .as[List[JsValue]]
+        .map(channel => (channel \ "name").as[String] -> (channel \ "id").as[String])
+        .toMap
+        .apply(Twilack.channelName)
       val id = (rtm.state \ "self" \ "id").as[String]
       val name = (rtm.state \ "self" \ "name").as[String]
-      val user = TwilackUser(id, name, twitter.getId, twitter.getScreenName)
+      val user = TwilackUser(id, name, channel, twitter.getId, twitter.getScreenName)
       rtm.onComplete(new SlackEventHandler(twitter, api, user))
       twitterStream.addListener(new TwitterEventHandler(twitter, api, user))
       twitterStream.user()

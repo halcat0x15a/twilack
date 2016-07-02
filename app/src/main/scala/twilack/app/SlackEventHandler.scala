@@ -21,8 +21,10 @@ class SlackEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(im
 
   def onMessage(json: JsValue): Unit =
     for {
-      u <- (json \ "user").asOpt[String]
-      if u == user.slackId
+      usr <- (json \ "user").asOpt[String]
+      if usr == user.slackId
+      chan <- (json \ "channel").asOpt[String]
+      if chan == user.slackChannel
       text <- (json \ "text").asOpt[String]
     } try {
       val status = text.replace(s"<@${user.slackId}>", s"@${user.twitterName}").replaceAll("<[@#!]\\w+>", "")

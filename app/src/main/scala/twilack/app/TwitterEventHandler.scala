@@ -72,10 +72,10 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(
       text = Some(getText(status))
     )
 
-  def getAttachments(status: Status, footer: String): List[Attachment] = {
+  def getAttachments(status: Status, header: String): List[Attachment] = {
     val attachment = Attachment(
       fallback = Some(status.getId.toString),
-      pretext = Some(s"${getText(status)}\n${footer}")
+      pretext = Some(s"${header}\n${getText(status)}")
     )
     (getMediaURLs(status), getStatuses(status)) match {
       case (url :: urls, statuses) =>
@@ -93,12 +93,12 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(
     s"${getUserURL(status)}/status/${status.getId}"
 
   override def onStatus(status: Status) = {
-    val footer = s"<${getUserURL(status)}|${status.getUser.getName}> <${getStatusURL(status)}|tweeted>"
+    val header = s"<${getUserURL(status)}|${status.getUser.getName}> <${getStatusURL(status)}|tweeted>"
     if (status.isRetweet) {
       val retweeted = status.getRetweetedStatus
-      postMessage(retweeted.getUser, getAttachments(retweeted, footer))
+      postMessage(retweeted.getUser, getAttachments(retweeted, header))
     } else {
-      postMessage(status.getUser, getAttachments(status, footer))
+      postMessage(status.getUser, getAttachments(status, header))
     }
   }
 
