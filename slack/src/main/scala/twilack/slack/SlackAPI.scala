@@ -40,6 +40,12 @@ trait SlackAPI {
     def create(name: String): Future[JsValue] =
       execute("channels.create", "name" -> name)
 
+    def info(channel: String): Future[JsValue] =
+      execute("channels.info", "channel" -> channel)
+
+    def list(excludeArchived: Option[String] = None): Future[JsValue] =
+      execute("channels.list", "exclude_archived" -> excludeArchived)
+
   }
 
   object chat {
@@ -60,6 +66,7 @@ trait SlackAPI {
       execute(
         "chat.postMessage",
         "channel" -> channel,
+        "text" -> text,
         "parse" -> parse,
         "link_names" -> linkNames,
         "attachments" -> attachments,
