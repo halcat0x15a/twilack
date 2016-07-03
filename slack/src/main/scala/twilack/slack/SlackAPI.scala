@@ -35,6 +35,13 @@ trait SlackAPI {
     }
   }
 
+  object auth {
+
+    def test(): Future[JsValue] =
+      execute("auth.test")
+
+  }
+
   object channels {
 
     def create(name: String): Future[JsValue] =
