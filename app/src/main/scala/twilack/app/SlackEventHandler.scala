@@ -1,15 +1,13 @@
 package twilack.app
 
+import java.time.{LocalDateTime, ZoneOffset}
 import play.api.libs.json.JsValue
-
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
-
-import twilack.slack.SlackAPI
-
+import twilack.slack.{SlackAPI, SlackRTM}
 import twitter4j.{Twitter, TwitterException}
 
-class SlackEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(implicit ec: ExecutionContext) extends (Try[JsValue] => Unit) {
+class SlackEventHandler(twitter: Twitter, api: SlackAPI, rtm: SlackRTM, user: TwilackUser)(implicit ec: ExecutionContext) extends (Try[JsValue] => Unit) {
 
   def getStatusId(json: JsValue): Option[Long] =
     for {
@@ -19,19 +17,35 @@ class SlackEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(im
       id <- Try(fallback.toLong).toOption
     } yield id
 
+  def tsToDateTime(ts: Int): LocalDateTime =
+    LocalDateTime.ofEpochSecond(ts, 0, ZoneOffset.UTC)
+
+  def tsToDateTime(ts: String): Option[LocalDateTime] =
+    Try {
+      val pair = ts.split("\\.")
+      LocalDateTime.ofEpochSecond(pair(0).toLong, pair(1).toInt * 1000, ZoneOffset.UTC)
+    }.toOption
+
   def onMessage(json: JsValue): Unit =
-    for {
-      usr <- (json \ "user").asOpt[String]
-      if usr == user.slackId
-      chan <- (json \ "channel").asOpt[String]
-      if chan == user.slackChannel
-      text <- (json \ "text").asOpt[String]
-    } try {
-      val status = text.replace(s"<@${user.slackId}>", s"@${user.twitterName}").replaceAll("<[@#!]\\w+>", "")
-      twitter.updateStatus(status)
-    } catch {
-      case e: TwitterException =>
-        slack.chat.postMessage(Twilack.channel, e.getMessage)
+    rtm.state().onSuccess {
+      case state =>
+        for {
+          cache <- (state \ "cache_ts").asOpt[Int]
+          ts <- (json \ "ts").asOpt[String]
+          ts <- tsToDateTime(ts)
+          if ts.isAfter(tsToDateTime(cache))
+          usr <- (json \ "user").asOpt[String]
+          if usr == user.slackId
+          chan <- (json \ "channel").asOpt[String]
+          if chan == user.slackChannel
+          text <- (json \ "text").asOpt[String]
+        } try {
+          val status = text.replace(s"<@${user.slackId}>", s"@${user.twitterName}").replaceAll("<[@#!]\\w+>", "")
+          twitter.updateStatus(status)
+        } catch {
+          case e: TwitterException =>
+            api.chat.postMessage(Twilack.channel, e.getMessage)
+        }
     }
 
   def onSuccess(json: JsValue): Unit =
@@ -44,8 +58,11 @@ class SlackEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(im
 
   def apply(value: Try[JsValue]): Unit =
     value match {
-      case Success(json) => onSuccess(json)
-      case Failure(e) => e.printStackTrace()
+      case Success(json) =>
+        println(json)
+        onSuccess(json)
+      case Failure(e) =>
+        e.printStackTrace()
     }
 
 }

@@ -29,7 +29,7 @@ trait SlackAPI {
         if ((json \ "ok").as[Boolean]) {
           json
         } else {
-          throw SlackAPIException((json \ "error").as[String])
+          throw SlackException((json \ "error").as[String])
         }
       }
     }
@@ -148,7 +148,7 @@ object SlackAPI {
     }
   }
 
-  case class Param(value: Option[String]) extends AnyVal
+  case class Param(value: Option[String])
 
   object Param {
 

@@ -46,14 +46,11 @@ object Main extends App {
       .apply(Twilack.channelName)
     TwilackUser(id, name, channel, twitter.getId, twitter.getScreenName)
   }
-  user.onSuccess { user =>
-    twitterStream.addListener(new TwitterEventHandler(twitter, api, user))
-    twitterStream.user()
-  }
-  SlackRTM.start(api).zip(user).onComplete {
-    case Success((rtm, user)) =>
-      rtm.onComplete(new SlackEventHandler(twitter, api, user))
-    case Failure(e) =>
-      e.printStackTrace
+  val rtm = SlackRTM(api)
+  user.onSuccess {
+    case user =>
+      rtm.start(new SlackEventHandler(twitter, api, rtm, user))
+      twitterStream.addListener(new TwitterEventHandler(twitter, api, user))
+      twitterStream.user()
   }
 }

@@ -1,45 +1,101 @@
 package twilack.slack
 
-import akka.actor.{ActorRef, ActorRefFactory, Props}
-
-import org.asynchttpclient.ws.{WebSocket, WebSocketTextListener, WebSocketUpgradeHandler}
-
-import play.api.libs.json.JsValue
-
+import akka.actor.{Actor, ActorRef, ActorSystem, Props, Terminated}
+import akka.actor.ActorDSL._
+import play.api.libs.json.{Json, JsValue}
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
+import scala.concurrent.duration._
+import scala.util.{Failure, Success, Try}
 
 trait SlackRTM {
 
-  def state: JsValue
-
   def worker: ActorRef
 
-  def send(message: String): Unit = worker ! SlackRTMActor.Sending(message)
+  implicit val system: ActorSystem
 
-  def onComplete(f: Try[JsValue] => Unit): Unit = worker ! SlackRTMActor.Handler(Some(f))
+  import SlackActor._
+
+  import system.dispatcher
+
+  def state(): Future[JsValue] = Future {
+    implicit val i = inbox()
+    worker ! GetState
+    i.receive().asInstanceOf[JsValue]
+  }
+
+  def send(message: String): Unit = worker ! Sending(message)
+
+  def start(handler: Try[JsValue] => Unit): Unit = worker ! Start
 
 }
 
 object SlackRTM {
 
-  def start(api: SlackAPI)(implicit factory: ActorRefFactory, ec: ExecutionContext): Future[SlackRTM] =
-    api.rtm.start.map { json =>
-      val actorRef = factory.actorOf(Props[SlackRTMActor])
-      val url = (json \ "url").as[String]
-      val handler = new WebSocketUpgradeHandler.Builder()
-        .addWebSocketListener(new WebSocketTextListener {
-          def onMessage(message: String): Unit = actorRef ! SlackRTMActor.Received(message)
-          def onOpen(websocket: WebSocket): Unit = actorRef ! SlackRTMActor.Open(websocket)
-          def onClose(websocket: WebSocket): Unit = actorRef ! SlackRTMActor.Close(websocket)
-          def onError(throwable: Throwable): Unit = actorRef ! SlackRTMActor.Failure(throwable)
-        })
-        .build
-      api.httpClient.prepareGet(url).execute(handler)
-      new SlackRTM {
-        val state = json
-        val worker = actorRef
-      }
+  def apply(api: SlackAPI)(implicit factory: ActorSystem): SlackRTM =
+    new SlackRTM {
+      val system = factory
+      val worker = factory.actorOf(Props(classOf[SlackActor], api))
     }
+
+}
+
+class SlackActor(api: SlackAPI) extends Actor {
+
+  import SlackActor._
+
+  import context.dispatcher
+
+  var handler: Option[Try[JsValue] => Unit] = None
+
+  var state: Option[JsValue] = None
+
+  var failures: Int = 0
+
+  def receive = {
+    case Start =>
+      handler.foreach(start)
+    case GetState =>
+      state.foreach(sender ! _)
+    case SetState(json) =>
+      state = Some(json)
+      failures = 0
+    case Sending(text) =>
+      context.child("ws").foreach(_ ! text)
+    case Close =>
+      val delay = failures * failures
+      failures += 1
+      context.system.scheduler.scheduleOnce(delay.seconds, self, Start)
+    case Terminated(_) => self ! Close
+  }
+
+  def start(f: Try[JsValue] => Unit): Unit =
+    api.rtm.start.onComplete {
+      case Success(json) =>
+        val url = (json \ "url").as[String]
+        val actor = context.watch(context.actorOf(Props(classOf[WebSocketActor], f), "ws"))
+        api.httpClient.prepareGet(url).execute(WebSocketActor.upgrade(actor))
+        self ! SetState(json)
+      case Failure(e) =>
+        e.printStackTrace
+        self ! Close
+    }
+
+}
+
+object SlackActor {
+
+  case class Start(handler: Try[JsValue] => Unit)
+
+  case object GetState
+
+  case class SetState(state: JsValue)
+
+  case class Received(message: String)
+
+  case class Sending(message: String)
+
+  case object Close
+
+  case class Error(cause: Throwable)
 
 }
