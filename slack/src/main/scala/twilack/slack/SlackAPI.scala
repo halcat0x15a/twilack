@@ -1,9 +1,7 @@
 package twilack.slack
 
 import org.asynchttpclient.{AsyncCompletionHandler, BoundRequestBuilder, DefaultAsyncHttpClient, RequestBuilder, Response}
-
 import play.api.libs.json.{Json, JsValue}
-
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 import scala.language.implicitConversions

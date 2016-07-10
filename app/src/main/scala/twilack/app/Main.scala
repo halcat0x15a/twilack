@@ -1,17 +1,11 @@
 package twilack.app
 
 import akka.actor.ActorSystem
-
 import com.typesafe.config.ConfigFactory
-
 import java.io.File
-
 import play.api.libs.json.JsValue
-
 import scala.util.{Failure, Success}
-
 import twilack.slack.{SlackAPI, SlackRTM}
-
 import twitter4j._
 import twitter4j.auth.AccessToken
 import twitter4j.conf.ConfigurationBuilder
@@ -49,7 +43,8 @@ object Main extends App {
   val rtm = SlackRTM(api)
   user.onSuccess {
     case user =>
-      rtm.start(new SlackEventHandler(twitter, api, rtm, user))
+      rtm.onEvent(new SlackEventHandler(twitter, api, rtm, user))
+      rtm.start()
       twitterStream.addListener(new TwitterEventHandler(twitter, api, user))
       twitterStream.user()
   }

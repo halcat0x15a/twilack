@@ -6,18 +6,13 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.HttpCookie
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
-
 import com.typesafe.config.ConfigFactory
-
 import java.awt.Desktop
 import java.net.URI
 import java.nio.file.{Files, Path}
-
 import scala.concurrent.{Await, Promise}
 import scala.concurrent.duration.Duration
-
 import twilack.slack.SlackAPI
-
 import twitter4j.Twitter
 
 object OAuthClient {

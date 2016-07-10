@@ -7,7 +7,7 @@ import scala.util.{Failure, Success, Try}
 import twilack.slack.{SlackAPI, SlackRTM}
 import twitter4j.{Twitter, TwitterException}
 
-class SlackEventHandler(twitter: Twitter, api: SlackAPI, rtm: SlackRTM, user: TwilackUser)(implicit ec: ExecutionContext) extends (Try[JsValue] => Unit) {
+class SlackEventHandler(twitter: Twitter, api: SlackAPI, rtm: SlackRTM, user: TwilackUser)(implicit ec: ExecutionContext) extends (JsValue => Unit) {
 
   def getStatusId(json: JsValue): Option[Long] =
     for {
@@ -48,21 +48,12 @@ class SlackEventHandler(twitter: Twitter, api: SlackAPI, rtm: SlackRTM, user: Tw
         }
     }
 
-  def onSuccess(json: JsValue): Unit =
+  def apply(json: JsValue): Unit =
     (json \ "type").asOpt[String].foreach {
       case "message" => onMessage(json)
       case "star_added" => getStatusId((json \ "item").get).foreach(twitter.createFavorite)
       case "star_removed" => getStatusId((json \ "item").get).foreach(twitter.destroyFavorite)
       case _ =>
-    }
-
-  def apply(value: Try[JsValue]): Unit =
-    value match {
-      case Success(json) =>
-        println(json)
-        onSuccess(json)
-      case Failure(e) =>
-        e.printStackTrace()
     }
 
 }

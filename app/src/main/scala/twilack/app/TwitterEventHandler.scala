@@ -3,9 +3,7 @@ package twilack.app
 import scala.concurrent.ExecutionContext
 import scala.util.Try
 import scala.util.matching.Regex
-
 import twilack.slack.{Attachment, SlackAPI}
-
 import twitter4j._
 
 class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(implicit ec: ExecutionContext) extends UserStreamAdapter {

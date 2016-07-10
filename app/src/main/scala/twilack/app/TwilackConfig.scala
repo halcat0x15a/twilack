@@ -1,7 +1,6 @@
 package twilack.app
 
 import com.typesafe.config.{Config, ConfigFactory}
-
 import scala.collection.JavaConverters._
 
 case class TwilackConfig(slackToken: String, twitterToken: String, twitterSecret: String) {
