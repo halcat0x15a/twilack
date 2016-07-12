@@ -40,7 +40,7 @@ class SlackActor(api: SlackAPI) extends Actor {
       val url = (json \ "url").as[String]
       val actor = context.actorOf(WebSocketActor.props(self.path / "*"), "ws")
       context.watch(actor)
-      api.httpClient.prepareGet(url).execute(WebSocketActor.upgrade(actor))
+      httpClient.prepareGet(url).execute(WebSocketActor.upgrade(actor))
       json
     }.onComplete {
       case Success(json) =>
