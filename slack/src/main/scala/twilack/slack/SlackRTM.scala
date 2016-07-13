@@ -6,6 +6,7 @@ import akka.util.Timeout
 import play.api.libs.json.JsValue
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
 trait SlackRTM {
@@ -16,11 +17,11 @@ trait SlackRTM {
 
   implicit def dispatcher: ExecutionContext
 
-  implicit val timeout: Timeout = Timeout(1.minute)
+  implicit val timeout: Timeout = Timeout(1 minute)
 
-  def state(): Future[JsValue] = (worker ? CurrentState).map(_.asInstanceOf[JsValue])
+  def state(): Future[JsValue] = (worker ? CurrentState).mapTo[JsValue]
 
-  def send(message: String): Unit = worker ! Message(message)
+  def send(message: String): Unit = worker ! Sending(message)
 
   def onEvent(handler: JsValue => Unit): Unit =
     worker ! EventHandler {
@@ -42,7 +43,7 @@ object SlackRTM {
 
   def apply(api: SlackAPI)(implicit factory: ActorRefFactory): SlackRTM =
     new SlackRTM {
-      val worker = factory.actorOf(SlackActor.props(api))
+      val worker = SlackActor(api)
       val dispatcher = factory.dispatcher
     }
 
