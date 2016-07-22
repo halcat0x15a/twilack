@@ -1,5 +1,6 @@
 package twilack.app
 
+import scala.collection.breakOut
 import scala.concurrent.ExecutionContext
 import scala.util.Try
 import scala.util.matching.Regex
@@ -10,33 +11,26 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(
 
   val StatusURL: Regex = """https://twitter.com/(\w+)/status/(\d+)""".r
 
-  def getMediaURLs(status: Status): List[String] =
-    (status.getMediaEntities ++ status.getExtendedMediaEntities).toList.flatMap { media =>
-      if (media.getType == "photo" || media.getType == "animated_gif") {
-        Some(media.getMediaURLHttps)
-      } else {
-        None
-      }
-    }.distinct
-
-  def replaceHashtag(text: String, entities: Seq[HashtagEntity]): String =
-    entities.foldLeft(text) { (text, entity) =>
-      text.replace(s"#${entity.getText}", s"<https://twitter.com/hashtag/${entity.getText}|#${entity.getText}>")
-    }
-
-  def replaceURL(text: String, entities: Seq[URLEntity]): String =
-    entities.foldLeft(text) { (text, entity) =>
-      text.replace(entity.getURL, s"<${entity.getExpandedURL}|${entity.getDisplayURL}>")
-    }
-
-  def replaceScreenName(text: String): String =
-    text.replace(s"@${user.twitterName}", s"<@${user.slackId}>")
+  def getMediaURLs(status: Status): List[String] = {
+    val entities = status.getMediaEntities ++ status.getExtendedMediaEntities
+    val urls = entities.map(_.getMediaURLHttps)(breakOut): List[String]
+    urls.distinct
+  }
 
   def getText(status: Status): String = {
-    val replacingHashtag = replaceHashtag(status.getText, status.getHashtagEntities)
-    val replacingURL = replaceURL(replacingHashtag, status.getExtendedMediaEntities ++ status.getURLEntities)
-    val replacingScreenName = replaceScreenName(replacingURL)
-    replacingScreenName
+    val text = status.getText
+    val entities = status.getUserMentionEntities ++ status.getExtendedMediaEntities ++ status.getURLEntities ++ status.getHashtagEntities
+    val (n, init) = entities.sortBy(_.getStart).foldLeft((0, "")) {
+      case ((n, acc), entity) =>
+        val entityText = entity match {
+          case entity: HashtagEntity => s"<https://twitter.com/hashtag/${entity.getText}|#${entity.getText}>"
+          case entity: URLEntity => s"<${entity.getExpandedURL}|${entity.getDisplayURL}>"
+          case entity: UserMentionEntity => s"<https://twitter.com/${entity.getScreenName}|@${entity.getScreenName}>"
+          case _ => entity.getText
+        }
+        (entity.getEnd, s"${acc}${text.substring(n, entity.getStart)}${entityText}")
+    }
+    s"${init}${text.substring(n)}"
   }
 
   def getStatuses(status: Status): List[Status] =
@@ -44,18 +38,6 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(
       case StatusURL(_, id) => Try(twitter.showStatus(id.toLong)).toOption
       case _ => None
     })
-
-  def postMessage(user: User, attachments: List[Attachment]): Unit =
-    slack.chat.postMessage(
-      Twilack.channel,
-      "",
-      username = Some(user.getScreenName),
-      asUser = Some(false),
-      iconUrl = Some(user.getProfileImageURL),
-      attachments = Some(attachments)
-    ).onFailure {
-      case e: Throwable => e.printStackTrace()
-    }
 
   def attachMedia(media: String, attachment: Attachment = Attachment()): Attachment =
     attachment.copy(
@@ -70,11 +52,8 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(
       text = Some(getText(status))
     )
 
-  def getAttachments(status: Status, header: String): List[Attachment] = {
-    val attachment = Attachment(
-      fallback = Some(status.getId.toString),
-      pretext = Some(s"${header}\n${getText(status)}")
-    )
+  def getAttachments(status: Status): List[Attachment] = {
+    val attachment = Attachment()
     (getMediaURLs(status), getStatuses(status)) match {
       case (url :: urls, statuses) =>
         attachMedia(url, attachment) :: urls.map(attachMedia(_)) ::: statuses.map(attachStatus(_))
@@ -90,13 +69,28 @@ class TwitterEventHandler(twitter: Twitter, slack: SlackAPI, user: TwilackUser)(
   def getStatusURL(status: Status): String =
     s"${getUserURL(status)}/status/${status.getId}"
 
-  override def onStatus(status: Status) = {
-    val header = s"<${getUserURL(status)}|${status.getUser.getName}> <${getStatusURL(status)}|tweeted>"
+  def postMessage(header: String, status: Status): Unit = {
+    slack.chat.postMessage(
+      Twilack.channel,
+      s"${header}\n${getText(status)}",
+      username = Some(status.getUser.getScreenName),
+      asUser = Some(false),
+      iconUrl = Some(status.getUser.getProfileImageURL),
+      attachments = Some(getAttachments(status))
+    ).onFailure {
+      case e: Throwable => e.printStackTrace()
+    }
+  }
+
+  override def onStatus(status: Status): Unit = {
+    val userName = s"<${getUserURL(status)}|${status.getUser.getName}>"
     if (status.isRetweet) {
+      val header = s"${userName} <${getStatusURL(status)}|retweeted>"
       val retweeted = status.getRetweetedStatus
-      postMessage(retweeted.getUser, getAttachments(retweeted, header))
+      postMessage(header, retweeted)
     } else {
-      postMessage(status.getUser, getAttachments(status, header))
+      val header = s"${userName} <${getStatusURL(status)}|tweeted>"
+      postMessage(header, status)
     }
   }
 
