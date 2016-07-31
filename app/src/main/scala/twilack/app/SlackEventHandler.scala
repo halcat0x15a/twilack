@@ -4,17 +4,22 @@ import java.time.{LocalDateTime, ZoneOffset}
 import play.api.libs.json.JsValue
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
+import scala.util.matching.Regex
 import twilack.slack.{SlackAPI, SlackRTM}
 import twitter4j.{Twitter, TwitterException}
 
 class SlackEventHandler(twitter: Twitter, api: SlackAPI, rtm: SlackRTM, user: TwilackUser)(implicit ec: ExecutionContext) extends (JsValue => Unit) {
 
+  val StatusId: Regex = """/status/(\d+)""".r
+
   def getStatusId(json: JsValue): Option[Long] =
     for {
       tpe <- (json \ "type").asOpt[String]
       if tpe == "message"
-      fallback <- ((json \ "message" \ "attachments")(0) \ "fallback").asOpt[String]
-      id <- Try(fallback.toLong).toOption
+      text <- (json \ "message" \ "text").asOpt[String]
+      header <- text.split("\n").headOption
+      status <- StatusId.findFirstMatchIn(header)
+      id <- Try(status.group(1).toLong).toOption
     } yield id
 
   def tsToDateTime(ts: Int): LocalDateTime =
