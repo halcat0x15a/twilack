@@ -14,4 +14,10 @@ object Twilack {
 
   val configName: String = "twilack.conf"
 
+  val channelName: String = "twilack"
+
+  val host: String = "localhost"
+
+  val port: Int = 8080
+
 }

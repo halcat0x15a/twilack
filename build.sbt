@@ -6,6 +6,7 @@ lazy val root = (project in file(".")).
       "org.asynchttpclient" % "async-http-client" % "2.0.34",
       "org.twitter4j" % "twitter4j-stream" % "4.0.4",
       "com.typesafe" % "config" % "1.3.1",
+      "com.typesafe.akka" %% "akka-http" % "10.0.10",
       "com.typesafe.play" %% "play-json" % "2.6.3"
     ),
     assemblyJarName in assembly := "twilack.jar",
